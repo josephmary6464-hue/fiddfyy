@@ -26,11 +26,6 @@ TOKEN = os.getenv('BOT_TOKEN')
 
 # Constants
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
-ALLOWED_IMAGE_FORMATS = ['jpg', 'jpeg', 'png', 'webp', 'bmp']
-ALLOWED_DOC_FORMATS = ['pdf']
-
-# Store user session data
-user_sessions = {}
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when /start is issued."""
@@ -119,95 +114,107 @@ Made with ❤️ for the Telegram community
 
 async def handle_document(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle document uploads."""
-    document = update.message.document
-    file_size = document.file_size
-    
-    if file_size > MAX_FILE_SIZE:
-        await update.message.reply_text("⚠️ File is too large! Maximum size is 50MB.")
-        return
-    
-    # Store file info in context for later use
-    file_id = document.file_id
-    file_name = document.file_name
-    mime_type = document.mime_type
-    
-    context.user_data['last_file'] = {
-        'file_id': file_id,
-        'file_name': file_name,
-        'mime_type': mime_type
-    }
-    
-    await update.message.reply_text(
-        f"✅ File received: {file_name}\n"
-        f"📊 Size: {file_size / 1024:.2f} KB\n"
-        f"📌 Use a command to process this file!\n"
-        f"Available: /convert, /compress, /watermark, /ocr, /metadata"
-    )
+    try:
+        document = update.message.document
+        file_size = document.file_size
+        
+        if file_size > MAX_FILE_SIZE:
+            await update.message.reply_text("⚠️ File is too large! Maximum size is 50MB.")
+            return
+        
+        # Store file info in context for later use
+        file_id = document.file_id
+        file_name = document.file_name
+        mime_type = document.mime_type
+        
+        context.user_data['last_file'] = {
+            'file_id': file_id,
+            'file_name': file_name,
+            'mime_type': mime_type
+        }
+        
+        await update.message.reply_text(
+            f"✅ File received: {file_name}\n"
+            f"📊 Size: {file_size / 1024:.2f} KB\n"
+            f"📌 Use a command to process this file!\n"
+            f"Available: /convert, /compress, /watermark, /ocr, /metadata"
+        )
+    except Exception as e:
+        logger.error(f"Error handling document: {e}")
+        await update.message.reply_text("⚠️ Error processing file. Please try again.")
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle photo uploads."""
-    photo = update.message.photo[-1]  # Get the largest photo
-    file_size = photo.file_size
-    
-    if file_size > MAX_FILE_SIZE:
-        await update.message.reply_text("⚠️ File is too large! Maximum size is 50MB.")
-        return
-    
-    context.user_data['last_file'] = {
-        'file_id': photo.file_id,
-        'file_name': 'image.jpg',
-        'mime_type': 'image/jpeg'
-    }
-    
-    await update.message.reply_text(
-        "✅ Image received!\n"
-        "📌 Use a command to process:\n"
-        "/convert - Change format\n"
-        "/watermark - Add watermark\n"
-        "/ocr - Extract text"
-    )
+    try:
+        photo = update.message.photo[-1]  # Get the largest photo
+        file_size = photo.file_size
+        
+        if file_size > MAX_FILE_SIZE:
+            await update.message.reply_text("⚠️ File is too large! Maximum size is 50MB.")
+            return
+        
+        context.user_data['last_file'] = {
+            'file_id': photo.file_id,
+            'file_name': 'image.jpg',
+            'mime_type': 'image/jpeg'
+        }
+        
+        await update.message.reply_text(
+            "✅ Image received!\n"
+            "📌 Use a command to process:\n"
+            "/convert - Change format\n"
+            "/watermark - Add watermark\n"
+            "/ocr - Extract text"
+        )
+    except Exception as e:
+        logger.error(f"Error handling photo: {e}")
+        await update.message.reply_text("⚠️ Error processing image. Please try again.")
 
 async def convert_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Convert image to different format."""
-    if 'last_file' not in context.user_data:
-        await update.message.reply_text("⚠️ Please send a file first!")
-        return
-    
-    file_info = context.user_data['last_file']
-    if not file_info['mime_type'].startswith('image/'):
-        await update.message.reply_text("⚠️ This command only works with images!")
-        return
-    
-    keyboard = [
-        [
-            InlineKeyboardButton("JPG", callback_data="convert_jpg"),
-            InlineKeyboardButton("PNG", callback_data="convert_png"),
-        ],
-        [
-            InlineKeyboardButton("WEBP", callback_data="convert_webp"),
-            InlineKeyboardButton("BMP", callback_data="convert_bmp"),
+    try:
+        if 'last_file' not in context.user_data:
+            await update.message.reply_text("⚠️ Please send a file first!")
+            return
+        
+        file_info = context.user_data['last_file']
+        if not file_info['mime_type'].startswith('image/'):
+            await update.message.reply_text("⚠️ This command only works with images!")
+            return
+        
+        keyboard = [
+            [
+                InlineKeyboardButton("JPG", callback_data="convert_jpg"),
+                InlineKeyboardButton("PNG", callback_data="convert_png"),
+            ],
+            [
+                InlineKeyboardButton("WEBP", callback_data="convert_webp"),
+                InlineKeyboardButton("BMP", callback_data="convert_bmp"),
+            ]
         ]
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await update.message.reply_text(
-        "🔄 Select the format you want to convert to:",
-        reply_markup=reply_markup
-    )
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.message.reply_text(
+            "🔄 Select the format you want to convert to:",
+            reply_markup=reply_markup
+        )
+    except Exception as e:
+        logger.error(f"Error in convert command: {e}")
+        await update.message.reply_text("⚠️ Error starting conversion. Please try again.")
 
 async def compress_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Compress PDF file."""
-    if 'last_file' not in context.user_data:
-        await update.message.reply_text("⚠️ Please send a PDF file first!")
-        return
-    
-    file_info = context.user_data['last_file']
-    if not file_info['file_name'].lower().endswith('.pdf'):
-        await update.message.reply_text("⚠️ This command only works with PDF files!")
-        return
-    
-    await update.message.reply_text("📦 Compressing PDF... Please wait.")
-    
     try:
+        if 'last_file' not in context.user_data:
+            await update.message.reply_text("⚠️ Please send a PDF file first!")
+            return
+        
+        file_info = context.user_data['last_file']
+        if not file_info['file_name'].lower().endswith('.pdf'):
+            await update.message.reply_text("⚠️ This command only works with PDF files!")
+            return
+        
+        await update.message.reply_text("📦 Compressing PDF... Please wait.")
+        
         # Get file
         file = await context.bot.get_file(file_info['file_id'])
         file_bytes = await file.download_as_bytearray()
@@ -230,7 +237,7 @@ async def compress_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         compressed_size = len(output.getvalue())
         original_size = len(file_bytes)
-        reduction = ((original_size - compressed_size) / original_size) * 100
+        reduction = ((original_size - compressed_size) / original_size) * 100 if original_size > 0 else 0
         
         # Send compressed file
         await update.message.reply_document(
@@ -248,29 +255,33 @@ async def compress_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def watermark_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Add watermark to image."""
-    if 'last_file' not in context.user_data:
-        await update.message.reply_text("⚠️ Please send an image first!")
-        return
-    
-    # Ask for watermark text
-    context.user_data['awaiting_watermark'] = True
-    await update.message.reply_text(
-        "✏️ Please send the text you want to use as a watermark.\n"
-        "Reply with the text you'd like to add to your image."
-    )
+    try:
+        if 'last_file' not in context.user_data:
+            await update.message.reply_text("⚠️ Please send an image first!")
+            return
+        
+        # Ask for watermark text
+        context.user_data['awaiting_watermark'] = True
+        await update.message.reply_text(
+            "✏️ Please send the text you want to use as a watermark.\n"
+            "Reply with the text you'd like to add to your image."
+        )
+    except Exception as e:
+        logger.error(f"Error in watermark command: {e}")
+        await update.message.reply_text("⚠️ Error starting watermark process. Please try again.")
 
 async def handle_watermark_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle watermark text input."""
-    if not context.user_data.get('awaiting_watermark'):
-        return
-    
-    watermark_text = update.message.text
-    context.user_data['awaiting_watermark'] = False
-    
-    file_info = context.user_data['last_file']
-    await update.message.reply_text(f"🖼️ Adding watermark: '{watermark_text}'... Please wait.")
-    
     try:
+        if not context.user_data.get('awaiting_watermark'):
+            return
+        
+        watermark_text = update.message.text
+        context.user_data['awaiting_watermark'] = False
+        
+        file_info = context.user_data['last_file']
+        await update.message.reply_text(f"🖼️ Adding watermark: '{watermark_text}'... Please wait.")
+        
         # Get file
         file = await context.bot.get_file(file_info['file_id'])
         file_bytes = await file.download_as_bytearray()
@@ -282,15 +293,21 @@ async def handle_watermark_text(update: Update, context: ContextTypes.DEFAULT_TY
         watermarked = image.copy()
         draw = ImageDraw.Draw(watermarked)
         
-        # Try to load a font, fallback to default
+        # Use a simple default font (avoid font loading issues)
         try:
-            font = ImageFont.truetype("arial.ttf", 36)
+            # Try to use a basic font
+            font = ImageFont.load_default()
+            # Increase font size by using a scaled version (hack for larger text)
+            font_size = 36
         except:
             font = ImageFont.load_default()
         
         # Calculate text position (bottom right)
-        text_width = draw.textlength(watermark_text, font=font)
-        text_height = 36
+        # Get text size using default font
+        bbox = draw.textbbox((0, 0), watermark_text, font=font)
+        text_width = bbox[2] - bbox[0]
+        text_height = bbox[3] - bbox[1]
+        
         x = watermarked.width - text_width - 20
         y = watermarked.height - text_height - 20
         
@@ -315,14 +332,15 @@ async def handle_watermark_text(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def metadata_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Get file metadata."""
-    if 'last_file' not in context.user_data:
-        await update.message.reply_text("⚠️ Please send a file first!")
-        return
-    
-    file_info = context.user_data['last_file']
-    file = await context.bot.get_file(file_info['file_id'])
-    
-    metadata_text = f"""
+    try:
+        if 'last_file' not in context.user_data:
+            await update.message.reply_text("⚠️ Please send a file first!")
+            return
+        
+        file_info = context.user_data['last_file']
+        file = await context.bot.get_file(file_info['file_id'])
+        
+        metadata_text = f"""
 📄 **File Metadata**
 
 📌 **Name:** {file_info['file_name']}
@@ -330,23 +348,26 @@ async def metadata_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 📁 **Type:** {file_info['mime_type']}
 🆔 **File ID:** {file_info['file_id'][:15]}...
 📅 **Uploaded:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-    """
-    await update.message.reply_text(metadata_text, parse_mode='Markdown')
+        """
+        await update.message.reply_text(metadata_text, parse_mode='Markdown')
+    except Exception as e:
+        logger.error(f"Error in metadata command: {e}")
+        await update.message.reply_text("⚠️ Error getting metadata. Please try again.")
 
 async def ocr_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Extract text from image using OCR."""
-    if 'last_file' not in context.user_data:
-        await update.message.reply_text("⚠️ Please send an image first!")
-        return
-    
-    file_info = context.user_data['last_file']
-    if not file_info['mime_type'].startswith('image/'):
-        await update.message.reply_text("⚠️ This command only works with images!")
-        return
-    
-    await update.message.reply_text("📝 Extracting text from image... Please wait.")
-    
     try:
+        if 'last_file' not in context.user_data:
+            await update.message.reply_text("⚠️ Please send an image first!")
+            return
+        
+        file_info = context.user_data['last_file']
+        if not file_info['mime_type'].startswith('image/'):
+            await update.message.reply_text("⚠️ This command only works with images!")
+            return
+        
+        await update.message.reply_text("📝 Extracting text from image... Please wait.")
+        
         # Get file
         file = await context.bot.get_file(file_info['file_id'])
         file_bytes = await file.download_as_bytearray()
@@ -369,22 +390,22 @@ async def ocr_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle button callbacks for conversion."""
-    query = update.callback_query
-    await query.answer()
-    
-    if not query.data.startswith('convert_'):
-        return
-    
-    format_type = query.data.split('_')[1]
-    
-    if 'last_file' not in context.user_data:
-        await query.edit_message_text("⚠️ Please send a file first!")
-        return
-    
-    file_info = context.user_data['last_file']
-    await query.edit_message_text(f"🔄 Converting to {format_type.upper()}... Please wait.")
-    
     try:
+        query = update.callback_query
+        await query.answer()
+        
+        if not query.data.startswith('convert_'):
+            return
+        
+        format_type = query.data.split('_')[1]
+        
+        if 'last_file' not in context.user_data:
+            await query.edit_message_text("⚠️ Please send a file first!")
+            return
+        
+        file_info = context.user_data['last_file']
+        await query.edit_message_text(f"🔄 Converting to {format_type.upper()}... Please wait.")
+        
         # Get file
         file = await context.bot.get_file(file_info['file_id'])
         file_bytes = await file.download_as_bytearray()
@@ -410,7 +431,8 @@ async def button_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     except Exception as e:
         logger.error(f"Conversion error: {e}")
-        await query.edit_message_text(f"❌ Error converting to {format_type.upper()}. Please try again.")
+        if query:
+            await query.edit_message_text(f"❌ Error converting. Please try again.")
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Log errors and notify user."""
@@ -422,33 +444,41 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     """Start the bot."""
-    # Create the Application
-    application = Application.builder().token(TOKEN).build()
+    if not TOKEN:
+        print("❌ ERROR: BOT_TOKEN not set in environment variables!")
+        return
+    
+    try:
+        # Create the Application
+        application = Application.builder().token(TOKEN).build()
 
-    # Add command handlers
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("help", help_command))
-    application.add_handler(CommandHandler("about", about_command))
-    application.add_handler(CommandHandler("convert", convert_command))
-    application.add_handler(CommandHandler("compress", compress_command))
-    application.add_handler(CommandHandler("watermark", watermark_command))
-    application.add_handler(CommandHandler("metadata", metadata_command))
-    application.add_handler(CommandHandler("ocr", ocr_command))
-    
-    # Add message handlers
-    application.add_handler(MessageHandler(filters.Document.ALL, handle_document))
-    application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_watermark_text))
-    
-    # Add callback handler for buttons
-    application.add_handler(CallbackQueryHandler(button_callback))
-    
-    # Add error handler
-    application.add_error_handler(error_handler)
+        # Add command handlers
+        application.add_handler(CommandHandler("start", start))
+        application.add_handler(CommandHandler("help", help_command))
+        application.add_handler(CommandHandler("about", about_command))
+        application.add_handler(CommandHandler("convert", convert_command))
+        application.add_handler(CommandHandler("compress", compress_command))
+        application.add_handler(CommandHandler("watermark", watermark_command))
+        application.add_handler(CommandHandler("metadata", metadata_command))
+        application.add_handler(CommandHandler("ocr", ocr_command))
+        
+        # Add message handlers
+        application.add_handler(MessageHandler(filters.Document.ALL, handle_document))
+        application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_watermark_text))
+        
+        # Add callback handler for buttons
+        application.add_handler(CallbackQueryHandler(button_callback))
+        
+        # Add error handler
+        application.add_error_handler(error_handler)
 
-    # Start the bot
-    print("🚀 Bot is running...")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+        # Start the bot
+        print("🚀 FTDify Bot is running...")
+        application.run_polling(allowed_updates=Update.ALL_TYPES)
+        
+    except Exception as e:
+        print(f"❌ Failed to start bot: {e}")
 
 if __name__ == '__main__':
     main()
