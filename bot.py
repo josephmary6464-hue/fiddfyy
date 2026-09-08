@@ -1,12 +1,11 @@
 import os
+import sys
 import io
-import asyncio
 import logging
 from datetime import datetime
 from PIL import Image, ImageDraw, ImageFont
 from PyPDF2 import PdfReader, PdfWriter
 import pytesseract
-import aiofiles
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes, CallbackQueryHandler
 from dotenv import load_dotenv
@@ -14,23 +13,39 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Enable logging
+# Configure logging to see everything
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
-# Bot token from environment
+# Print startup info
+print("=" * 50)
+print("🚀 FTDify Bot Starting...")
+print("=" * 50)
+
+# Get token with better error handling
 TOKEN = os.getenv('BOT_TOKEN')
+
+if not TOKEN:
+    print("❌ CRITICAL ERROR: BOT_TOKEN not found in environment variables!")
+    print("Please set BOT_TOKEN in Railway environment variables")
+    sys.exit(1)
+
+print(f"✅ Bot token found: {TOKEN[:10]}... (length: {len(TOKEN)})")
 
 # Constants
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 
+# Store user session data
+user_sessions = {}
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when /start is issued."""
-    user = update.effective_user
-    welcome_text = f"""
+    try:
+        user = update.effective_user
+        welcome_text = f"""
 👋 G'day mate! Welcome to FTDify!
 
 I'm your all-in-one file management bot. I can help you convert, compress, and manage your files with ease.
@@ -45,8 +60,12 @@ I'm your all-in-one file management bot. I can help you convert, compress, and m
 /about - Learn more about this bot
 
 Ready to start? Just send me a file or use a command above!
-    """
-    await update.message.reply_text(welcome_text)
+        """
+        await update.message.reply_text(welcome_text)
+        logger.info(f"User {user.id} started the bot")
+    except Exception as e:
+        logger.error(f"Error in start command: {e}")
+        await update.message.reply_text("⚠️ Sorry, something went wrong. Please try again.")
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Send a message when /help is issued."""
@@ -293,17 +312,10 @@ async def handle_watermark_text(update: Update, context: ContextTypes.DEFAULT_TY
         watermarked = image.copy()
         draw = ImageDraw.Draw(watermarked)
         
-        # Use a simple default font (avoid font loading issues)
-        try:
-            # Try to use a basic font
-            font = ImageFont.load_default()
-            # Increase font size by using a scaled version (hack for larger text)
-            font_size = 36
-        except:
-            font = ImageFont.load_default()
+        # Use default font
+        font = ImageFont.load_default()
         
-        # Calculate text position (bottom right)
-        # Get text size using default font
+        # Calculate text position
         bbox = draw.textbbox((0, 0), watermark_text, font=font)
         text_width = bbox[2] - bbox[0]
         text_height = bbox[3] - bbox[1]
@@ -311,7 +323,7 @@ async def handle_watermark_text(update: Update, context: ContextTypes.DEFAULT_TY
         x = watermarked.width - text_width - 20
         y = watermarked.height - text_height - 20
         
-        # Add shadow for better visibility
+        # Add shadow and text
         draw.text((x+2, y+2), watermark_text, fill='black', font=font)
         draw.text((x, y), watermark_text, fill='white', font=font)
         
@@ -444,15 +456,14 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     """Start the bot."""
-    if not TOKEN:
-        print("❌ ERROR: BOT_TOKEN not set in environment variables!")
-        return
-    
     try:
+        print("🔧 Building application...")
         # Create the Application
         application = Application.builder().token(TOKEN).build()
+        print("✅ Application built successfully")
 
         # Add command handlers
+        print("📝 Adding handlers...")
         application.add_handler(CommandHandler("start", start))
         application.add_handler(CommandHandler("help", help_command))
         application.add_handler(CommandHandler("about", about_command))
@@ -472,13 +483,17 @@ def main():
         
         # Add error handler
         application.add_error_handler(error_handler)
+        print("✅ All handlers added")
 
         # Start the bot
-        print("🚀 FTDify Bot is running...")
+        print("🚀 Starting FTDify Bot polling...")
+        print("=" * 50)
         application.run_polling(allowed_updates=Update.ALL_TYPES)
         
     except Exception as e:
         print(f"❌ Failed to start bot: {e}")
+        logger.error(f"Fatal error: {e}", exc_info=True)
+        sys.exit(1)
 
 if __name__ == '__main__':
     main()
